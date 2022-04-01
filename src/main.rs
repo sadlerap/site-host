@@ -7,17 +7,43 @@ use std::io::ErrorKind;
 use std::{error::Error, net::SocketAddr};
 use tokio::fs::{canonicalize, read};
 use tracing::{debug, info, warn};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::fmt::init();
-    run_server().await
+    for var in std::env::vars() {
+        println!("{}={}", var.0, var.1);
+    }
+    let host = dbg!(std::env::var("SIMPLEST_COLLECTOR_SERVICE_HOST")?);
+    let port = dbg!(std::env::var("SIMPLEST_COLLECTOR_SERVICE_PORT_HTTP_C_BINARY_TRFT")?.parse::<u16>()?);
+    let endpoint = format!("http://{}:{}/api/traces", host, port);
+    debug!(%endpoint, "Jaeger");
+    let tracer = opentelemetry_jaeger::new_pipeline()
+        .with_collector_endpoint(endpoint)
+        .install_batch(opentelemetry::runtime::Tokio)?;
+    let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    Registry::default()
+        .with(EnvFilter::from_default_env())
+        .with(telemetry)
+        .init();
+
+    run_server().await?;
+
+    opentelemetry::global::shutdown_tracer_provider();
+
+    Ok(())
 }
 
 #[tracing::instrument]
 async fn run_server() -> Result<(), Box<dyn Error>> {
     let addr: SocketAddr = "0.0.0.0:8080".parse()?;
     let app = Router::new().route("/*path", get(serve_path));
+
+
+    let cwd = &std::env::current_dir().expect("current directory undefined");
+    let cwd_path = cwd.display();
+    debug!(%cwd_path, "Serving");
 
     info!("Listening on http://{}", addr);
 
@@ -30,8 +56,7 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
 async fn serve_path(Path(path): Path<String>) -> Response {
     info!(%path, "Handing request");
     let cwd = &std::env::current_dir().expect("current directory undefined");
-    let cwd_path = cwd.display();
-    debug!(%cwd_path, "Serving from");
+
     let mut real_path = cwd.clone();
 
     let path = path.strip_prefix('/').unwrap_or(&path);

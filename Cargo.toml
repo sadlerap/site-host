@@ -9,8 +9,13 @@ edition = "2021"
 axum = "0.4.8"
 hyper = { version = "0.14.18", features = ["full"] }
 mime_guess = "2.0.4"
+opentelemetry = { version = "0.17.0", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "0.16.0", features = ["rt-tokio", "reqwest_collector_client"] }
 tokio = { version = "1.17.0", features = ["full"] }
 tower = "0.4.12"
 tower-http = { version = "0.2.5", features = ["compression-gzip"] }
 tracing = "0.1.32"
-tracing-subscriber = { version = "0.3.9", features = ["env-filter"] }
+tracing-opentelemetry = "0.17.2"
+tracing-subscriber = { version = "0.3.9", features = ["env-filter", "registry"] }
+
+[features]
